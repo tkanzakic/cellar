@@ -19,9 +19,13 @@ func NewAuthUseCase(userRepo ports.UserRepository) ports.AuthUseCase {
 }
 
 func (u *authUseCase) SignUp(email, name, password string) (*domain.User, error) {
+	_, err := u.repo.GetByEmail(email)
+	if err == nil {
+		return nil, errors.New("Email already in use")
+	}
 	id := helpers.Uuid()
 	user := domain.NewUserHashingPassword(id, email, name, password)
-	user, err := u.repo.Create(user)
+	user, err = u.repo.Create(user)
 	if err != nil {
 		return nil, err
 	}
