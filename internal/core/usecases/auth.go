@@ -36,7 +36,7 @@ func (u *authUseCase) SignUp(email, name, password string) (*domain.User, error)
 func (u *authUseCase) SignIn(email, password string) (*domain.User, error) {
 	user, err := u.repo.GetByEmail(email)
 	if err != nil {
-		return nil, errors.New("Invalid email address")
+		return nil, err
 	}
 	if !user.VerifyPassword(password) {
 		return nil, errors.New("Invalid password")
