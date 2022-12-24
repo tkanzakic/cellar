@@ -5,33 +5,28 @@ import (
 )
 
 type User struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	Family   string
+	Email    string
+	Name     string
+	Password string
 }
 
-func NewUser(id, email, name, password string) *User {
+func NewUser(family, email, name, password string) *User {
 	return &User{
-		ID:       id,
+		Family:   family,
 		Email:    email,
 		Name:     name,
 		Password: password,
 	}
 }
 
-func NewUserHashingPassword(id, email, name, password string) *User {
+func NewUserHashingPassword(family, email, name, password string) *User {
 	pass, err := hashPassword(password)
 	if err != nil {
 		panic("Cannot hash password")
 	}
 
-	return &User{
-		ID:       id,
-		Email:    email,
-		Name:     name,
-		Password: pass,
-	}
+	return NewUser(family, email, name, pass)
 }
 
 func (u *User) HashedPassword() (string, error) {

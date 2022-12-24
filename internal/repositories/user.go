@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 
 	"github.com/tkanzakic/cellar/internal/core/domain"
 )
@@ -19,31 +18,6 @@ type userDynamoDBRepository struct {
 	db *dynamodb.DynamoDB
 }
 
-type repositoryUser struct {
-	ID             string
-	Email          string
-	Name           string
-	HashedPassword string
-}
-
-func domainToRepositoryUser(user *domain.User) *repositoryUser {
-	return &repositoryUser{
-		ID:             user.ID,
-		Email:          user.Email,
-		Name:           user.Name,
-		HashedPassword: user.Password,
-	}
-}
-
-func repositoryUserToDomain(user *repositoryUser) *domain.User {
-	return &domain.User{
-		ID:       user.ID,
-		Email:    user.Email,
-		Name:     user.Name,
-		Password: user.HashedPassword,
-	}
-}
-
 func NewDynamoDBUserRepository() *userDynamoDBRepository {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
@@ -52,12 +26,15 @@ func NewDynamoDBUserRepository() *userDynamoDBRepository {
 	return &userDynamoDBRepository{db: db}
 }
 
-func (r *userDynamoDBRepository) Get(id string) (*domain.User, error) {
+func (r *userDynamoDBRepository) GetByEmail(family, email string) (*domain.User, error) {
 	result, err := r.db.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String("Users"),
 		Key: map[string]*dynamodb.AttributeValue{
-			"ID": {
-				S: aws.String(id),
+			"Family": {
+				S: aws.String(family),
+			},
+			"Email": {
+				S: aws.String(email),
 			},
 		},
 	})
@@ -69,58 +46,17 @@ func (r *userDynamoDBRepository) Get(id string) (*domain.User, error) {
 		return nil, errors.New("User does not exists")
 	}
 
-	repoUser := repositoryUser{}
-	err = dynamodbattribute.UnmarshalMap(result.Item, &repoUser)
+	user := domain.User{}
+	err = dynamodbattribute.UnmarshalMap(result.Item, &user)
 	if err != nil {
 		return nil, err
 	}
 
-	user := repositoryUserToDomain(&repoUser)
-	return user, nil
-}
-
-func (r *userDynamoDBRepository) GetByEmail(email string) (*domain.User, error) {
-	user, err := getUser(r, "Email", email)
-	return user, err
-}
-
-func getUser(r *userDynamoDBRepository, credential, value string) (*domain.User, error) {
-	filter := expression.Name(credential).Equal(expression.Value(value))
-	projection := expression.NamesList(expression.Name("ID"), expression.Name("Email"), expression.Name("Name"), expression.Name("HashedPassword"))
-	expr, err := expression.NewBuilder().WithFilter(filter).WithProjection(projection).Build()
-	if err != nil {
-		return nil, err
-	}
-	params := &dynamodb.ScanInput{
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-		FilterExpression:          expr.Filter(),
-		ProjectionExpression:      expr.Projection(),
-		TableName:                 aws.String("Users"),
-	}
-
-	result, err := r.db.Scan(params)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, item := range result.Items {
-		repoUser := repositoryUser{}
-		err = dynamodbattribute.UnmarshalMap(item, &repoUser)
-		if err != nil {
-			return nil, err
-		}
-
-		user := repositoryUserToDomain(&repoUser)
-		return user, nil
-	}
-
-	return nil, errors.New("No user found")
+	return &user, nil
 }
 
 func (r *userDynamoDBRepository) Create(user *domain.User) (*domain.User, error) {
-	repoUser := domainToRepositoryUser(user)
-	marshalled, err := dynamodbattribute.MarshalMap(repoUser)
+	marshalled, err := dynamodbattribute.MarshalMap(user)
 	if err != nil {
 		return nil, err
 	}
@@ -146,20 +82,14 @@ func NewInMemoryUserRepository() *userInMemoryRepository {
 	return &userInMemoryRepository{kvs: map[string][]byte{}}
 }
 
-func (r *userInMemoryRepository) Get(id string) (*domain.User, error) {
-	if value, ok := r.kvs[id]; ok {
-		user, err := unmarshal(value)
-		return &user, err
-	}
-	return nil, errors.New("User does not exists")
+func getInMemoryKey(family, email string) string {
+	return family + "-" + email
 }
 
-func (r *userInMemoryRepository) GetByEmail(email string) (*domain.User, error) {
-	for _, value := range r.kvs {
+func (r *userInMemoryRepository) GetByEmail(family, email string) (*domain.User, error) {
+	if value, ok := r.kvs[getInMemoryKey(family, email)]; ok {
 		user, err := unmarshal(value)
-		if err == nil && user.Email == email {
-			return &user, nil
-		}
+		return &user, err
 	}
 	return nil, errors.New("User does not exists")
 }
@@ -169,7 +99,7 @@ func (r *userInMemoryRepository) Create(user *domain.User) (*domain.User, error)
 	if err != nil {
 		return nil, errors.New("Error marshalling user")
 	}
-	r.kvs[user.ID] = value
+	r.kvs[getInMemoryKey(user.Family, user.Email)] = value
 	return user, nil
 }
 

@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	github.com/aws/aws-sdk-go v1.44.166
-	github.com/google/uuid v1.3.0
 	golang.org/x/crypto v0.4.0
 )
 
