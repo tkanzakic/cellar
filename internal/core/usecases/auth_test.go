@@ -75,7 +75,7 @@ func TestShouldReturnIfInvalidPassword(t *testing.T) {
 
 // Utility functions
 func givenSut() (ports.UserRepository, ports.AuthUseCase) {
-	userRepository := repositories.NewDynamoDBUserRepository()
+	userRepository := repositories.NewInMemoryUserRepository()
 	return userRepository, NewAuthUseCase(userRepository)
 }
 
