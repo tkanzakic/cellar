@@ -1,7 +1,9 @@
 package main
 
 import (
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/tkanzakic/cellar/internal/core/usecases"
 	"github.com/tkanzakic/cellar/internal/handlers/signin"
@@ -11,6 +13,17 @@ import (
 var signInHandler = signin.NewHTTHandler(usecases.NewAuthUseCase(repositories.NewDynamoDBUserRepository()))
 
 func main() {
+	logFile, _ := os.Create("/var/log/golang/golang-server.log")
+	log.SetOutput(logFile)
+	defer logFile.Close()
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		log.Default().Print("PORT not specified, using default one")
+		port = "5000"
+	}
+
 	http.HandleFunc("/signin", signInHandler.SignIn)
-	http.ListenAndServe(":8080", nil)
+
+	http.ListenAndServe(":"+port, nil)
 }

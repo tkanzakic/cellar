@@ -45,10 +45,14 @@ func NewHTTHandler(useCase ports.AuthUseCase) *HTTPHandler {
 }
 
 func (h *HTTPHandler) SignIn(writer http.ResponseWriter, request *http.Request) {
+	responseEncoder := json.NewEncoder(writer)
+	if request.Method != "POST" {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
 	writer.Header().Set("Content-Type", "application/json")
 	var reqBody signInRequest
 	err := json.NewDecoder(request.Body).Decode(&reqBody)
-	responseEncoder := json.NewEncoder(writer)
 	if err != nil || !reqBody.isValid() {
 		logger.Printf("Invalid request received")
 		writer.WriteHeader(http.StatusBadRequest)
@@ -59,7 +63,7 @@ func (h *HTTPHandler) SignIn(writer http.ResponseWriter, request *http.Request) 
 	}
 	user, err := h.useCase.SignIn(reqBody.Family, reqBody.Email, reqBody.Password)
 	if err != nil {
-		logger.Printf("Invalid credentials request received")
+		logger.Printf("Invalid credentials request received %v", err)
 		writer.WriteHeader(http.StatusForbidden)
 		responseEncoder.Encode(signInErrorResponse{
 			Message: "Invalid credentials",
