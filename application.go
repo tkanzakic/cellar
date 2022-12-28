@@ -13,7 +13,7 @@ import (
 var signInHandler = signin.NewHTTHandler(usecases.NewAuthUseCase(repositories.NewDynamoDBUserRepository()))
 
 func main() {
-	logFile, _ := os.Create("/var/log/golang/golang-server.log")
+	logFile, _ := os.Create("/var/log/cellar-api-server.log")
 	log.SetOutput(logFile)
 	defer logFile.Close()
 
