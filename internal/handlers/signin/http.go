@@ -12,8 +12,6 @@ import (
 	"github.com/tkanzakic/cellar/internal/core/ports"
 )
 
-var logger = log.Default()
-
 type HTTPHandler struct {
 	useCase ports.AuthUseCase
 }
@@ -54,7 +52,7 @@ func (h *HTTPHandler) SignIn(writer http.ResponseWriter, request *http.Request) 
 	var reqBody signInRequest
 	err := json.NewDecoder(request.Body).Decode(&reqBody)
 	if err != nil || !reqBody.isValid() {
-		logger.Printf("Invalid request received")
+		log.Printf("Invalid request received")
 		writer.WriteHeader(http.StatusBadRequest)
 		responseEncoder.Encode(signInErrorResponse{
 			Message: "Invalid request",
@@ -63,7 +61,7 @@ func (h *HTTPHandler) SignIn(writer http.ResponseWriter, request *http.Request) 
 	}
 	user, err := h.useCase.SignIn(reqBody.Family, reqBody.Email, reqBody.Password)
 	if err != nil {
-		logger.Printf("Invalid credentials request received %v", err)
+		log.Printf("Invalid credentials request received %v", err)
 		writer.WriteHeader(http.StatusForbidden)
 		responseEncoder.Encode(signInErrorResponse{
 			Message: "Invalid credentials",
@@ -72,14 +70,14 @@ func (h *HTTPHandler) SignIn(writer http.ResponseWriter, request *http.Request) 
 	}
 	token, err := generateJWT(user)
 	if err != nil {
-		logger.Printf("An error ocurred while generating JWT token.\n%v", err)
+		log.Printf("An error ocurred while generating JWT token.\n%v", err)
 		writer.WriteHeader(http.StatusInternalServerError)
 		responseEncoder.Encode(signInErrorResponse{
 			Message: "An unexpected error ocurred, please try again later",
 		})
 		return
 	}
-	logger.Println("🚀 SingIn succeeded")
+	log.Println("🚀 SingIn succeeded")
 	writer.Header().Add("X-Jwt-Token", token)
 	writer.WriteHeader(http.StatusOK)
 	responseEncoder.Encode(signInResponse{

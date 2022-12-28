@@ -13,14 +13,12 @@ import (
 var signInHandler = signin.NewHTTHandler(usecases.NewAuthUseCase(repositories.NewDynamoDBUserRepository()))
 
 func main() {
-	logFile, _ := os.Create("/var/log/cellar-api-server.log")
-	log.SetOutput(logFile)
-	defer logFile.Close()
-
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Default().Print("PORT not specified, using default one")
+		log.Print("PORT not specified, using default one")
 		port = "5000"
+	} else {
+		log.Print("Using custom port: " + port)
 	}
 
 	http.HandleFunc("/signin", signInHandler.SignIn)

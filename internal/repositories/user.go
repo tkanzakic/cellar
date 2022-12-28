@@ -1,13 +1,18 @@
 package repositories
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/tkanzakic/cellar/internal/core/domain"
 )
@@ -15,28 +20,45 @@ import (
 // AWS DynamoDB Repository
 
 type userDynamoDBRepository struct {
-	db *dynamodb.DynamoDB
+	client *dynamodb.Client
 }
 
 func NewDynamoDBUserRepository() *userDynamoDBRepository {
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-	db := dynamodb.New(sess)
-	return &userDynamoDBRepository{db: db}
+	host := os.Getenv("HOST")
+	var client *dynamodb.Client
+	if host == "localhost" {
+		cfg, err := config.LoadDefaultConfig(context.TODO())
+		if err != nil {
+			log.Fatalf("Error loading config %v", err)
+		}
+		client = dynamodb.NewFromConfig(cfg)
+	} else {
+		client = dynamodb.NewFromConfig(aws.Config{
+			Credentials: ec2rolecreds.New(),
+			Region:      "us-east-1",
+		})
+	}
+	return &userDynamoDBRepository{client: client}
+}
+
+func getUserKey(family, email string) map[string]types.AttributeValue {
+	f, err := attributevalue.Marshal(family)
+	if err != nil {
+		log.Printf("Error marshalling family. %v", err)
+		return nil
+	}
+	e, err := attributevalue.Marshal(email)
+	if err != nil {
+		log.Printf("Error marshaling email. %v", err)
+		return nil
+	}
+	return map[string]types.AttributeValue{"Family": f, "Email": e}
 }
 
 func (r *userDynamoDBRepository) GetByEmail(family, email string) (*domain.User, error) {
-	result, err := r.db.GetItem(&dynamodb.GetItemInput{
+	result, err := r.client.GetItem(context.TODO(), &dynamodb.GetItemInput{
+		Key:       getUserKey(family, email),
 		TableName: aws.String("Users"),
-		Key: map[string]*dynamodb.AttributeValue{
-			"Family": {
-				S: aws.String(family),
-			},
-			"Email": {
-				S: aws.String(email),
-			},
-		},
 	})
 	if err != nil {
 		return nil, err
@@ -47,7 +69,7 @@ func (r *userDynamoDBRepository) GetByEmail(family, email string) (*domain.User,
 	}
 
 	user := domain.User{}
-	err = dynamodbattribute.UnmarshalMap(result.Item, &user)
+	err = attributevalue.UnmarshalMap(result.Item, &user)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +78,7 @@ func (r *userDynamoDBRepository) GetByEmail(family, email string) (*domain.User,
 }
 
 func (r *userDynamoDBRepository) Create(user *domain.User) (*domain.User, error) {
-	marshalled, err := dynamodbattribute.MarshalMap(user)
+	marshalled, err := attributevalue.MarshalMap(user)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +86,7 @@ func (r *userDynamoDBRepository) Create(user *domain.User) (*domain.User, error)
 		Item:      marshalled,
 		TableName: aws.String("Users"),
 	}
-	_, err = r.db.PutItem(input)
+	_, err = r.client.PutItem(context.TODO(), input)
 	if err != nil {
 		return nil, err
 	}
